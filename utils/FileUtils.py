@@ -45,7 +45,16 @@ def get_file_stats(file_type, file):
         return None
 
 def reset_state():
-    """Reinicia el estado de la aplicación"""
+    """Reinicia el estado de la aplicación y elimina archivos temporales"""
+    import os  # in case not already imported
+    # Eliminar archivo de video generado
+    generated_video = st.session_state.get("generated_video")
+    if generated_video and os.path.exists(generated_video):
+        try:
+            os.remove(generated_video)
+        except Exception as e:
+            st.error(f"Error al eliminar el video temporal: {e}")
+            
     keys_to_reset = [
         'step', 'uploaded_file', 'file_type', 'file_stats', 
         'generated_notes', 'target_language', 'tts_provider', 
@@ -208,7 +217,6 @@ def extract_pptx_slides(uploaded_file):
 
     return slides_images, slides_notes
 
-@st.cache_data(show_spinner=False)
 def get_file_bytes(file_path: str) -> bytes:
     with open(file_path, "rb") as f:
         return f.read()
