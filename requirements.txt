@@ -1,0 +1,14 @@
+streamlit
+PyPDF2
+python-pptx
+PyMuPDF
+openai
+transformers
+sentencepiece
+elevenlabs
+moviepy
+proglog
+google-genai
+kokoro>=0.3.4 
+soundfile
+# Pytorch

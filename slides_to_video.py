@@ -1,0 +1,385 @@
+import streamlit as st
+# Removed heavy imports here
+
+def load_heavy_modules():
+    global detect_file_type, get_file_stats, reset_state, init_session_state, get_language_options
+    global extract_pdf_slides, extract_pptx_slides, get_file_bytes, get_vlm
+    global get_tts_provider, ElevenLabsTTS, KokoroTTS, Translator
+    global merge_slides_to_video
+    from utils.FileUtils import (
+        detect_file_type, get_file_stats, reset_state, init_session_state,
+        get_language_options, extract_pdf_slides, extract_pptx_slides, get_file_bytes
+    )
+    from utils.VLMUtils import get_vlm
+    from utils.TTSUtils import get_tts_provider, ElevenLabsTTS, KokoroTTS
+    from utils.TranlationUtils import Translator
+    from utils.VideoUtils import merge_slides_to_video
+import time
+
+
+# Función para el Paso 1: Subir Presentación
+def step_upload():
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        st.write("#### Sube tu presentación")
+        uploaded_file = st.file_uploader(
+            "Arrastra o selecciona tu archivo",
+            type=['pdf', 'pptx'],
+            help="PDF o PPTX (solo PPTX admite notas del orador)",
+            key="file_uploader"
+        )
+        if uploaded_file:
+            file_type = detect_file_type(uploaded_file)
+            if file_type:
+                stats = get_file_stats(file_type, uploaded_file)
+                if stats:
+                    st.session_state.uploaded_file = uploaded_file
+                    st.session_state.file_type = file_type
+                    st.session_state.file_stats = stats
+                    st.success("✅ Archivo cargado correctamente")
+                    if file_type == 'pdf':
+                        st.session_state.slides_images = extract_pdf_slides(uploaded_file)
+                        st.session_state.slides_notes = ["" for _ in st.session_state.slides_images]
+                    else:
+                        st.session_state.slides_images, st.session_state.slides_notes = extract_pptx_slides(uploaded_file)
+        if st.session_state.uploaded_file and st.button("✨ Siguiente ✨", use_container_width=True):
+            st.session_state.step += 1
+            st.rerun()
+    with col2:
+        # ...Información y resumen del documento...
+        st.markdown("""
+        <div style="font-size:14px;">
+            <h4>Información</h4>
+            <p>
+                👋 <strong>Proceso de conversión</strong><br><br>
+                1. Sube tu presentación (PDF/PPTX)<br>
+                2. Configura las notas del orador<br>
+                3. Configura el audio con IA<br>
+                4. Genera y descarga el video
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.session_state.uploaded_file and st.session_state.file_stats:
+            st.markdown("<div style='font-size:14px;'><h4>📊 Resumen del documento</h4></div>", unsafe_allow_html=True)
+            for key, value in st.session_state.file_stats.items():
+                st.markdown(f"<div style='font-size:14px;'><strong>{key}:</strong> {value}</div>", unsafe_allow_html=True)
+            if st.session_state.file_type == 'pdf':
+                st.warning("⚠️ Los archivos PDF no contienen notas del orador")
+
+# Función para el Paso 2: Configurar Notas
+def step_configure_notes():
+    col_config, col_preview = st.columns(2)
+    with col_config:
+        languages = get_language_options()
+        notes = st.session_state.slides_notes  # Directamente de la sesión
+        has_notes = any(note for note in notes)
+        st.write("### Selección de operación:")
+        notes_mode = st.selectbox(
+            "Operación a realizar", 
+            options=["Traducir notas", "Generar notas"], 
+            index=0 if has_notes else 1, 
+            key='notes_mode'
+        )
+        if notes_mode == "Traducir notas":
+            st.write("### Traducir notas existentes")
+            source_lang = st.selectbox("Idioma original", options=languages.keys(), format_func=lambda x: languages[x], key='source_lang')
+            target_lang = st.selectbox("Idioma destino", options=languages.keys(), format_func=lambda x: languages[x], key='target_lang')
+            language_bcp47 = {"en": "eng_Latn", "es": "spa_Latn", "fr": "fra_Latn", "de": "deu_Latn",
+                              "ro": "ron_Latn", "it": "ita_Latn", "pt": "por_Latn", "nl": "nld_Latn",
+                              "pl": "pol_Latn", "ar": "arb_Arab"}
+            src_bcp47, tgt_bcp47 = language_bcp47.get(source_lang, source_lang), language_bcp47.get(target_lang, target_lang)
+            if st.button("Traducir Notas", use_container_width=True):
+                progress_bar = st.progress(0)
+                progress_text = st.empty()
+                translated_notes = []
+                total = len(st.session_state.slides_notes)
+                for idx, note in enumerate(st.session_state.slides_notes):
+                    if not note.strip():
+                        translated_notes.append("")
+                        continue
+                    progress_bar.progress((idx + 1) / total)
+                    progress_text.text(f"Traduciendo diapositiva {idx + 1} de {total}")
+                    translator_instance = Translator()
+                    translated_notes.append(translator_instance.translate_notes(src_bcp47, tgt_bcp47, note))
+                progress_bar.progress(1.0)
+                progress_text.empty()
+                st.session_state.slides_notes = translated_notes
+                st.success("✅ Notas traducidas correctamente")
+        else:
+            st.write("### Generar notas")
+            # Configuración de VLM para generación de notas
+            st.write("### Configuración de VLM")
+            vlm_model = st.selectbox(
+                "Modelo de VLM",
+                options=["LLMStudio", "Gemini 2.0"],
+                key="vlm_model"
+            )
+            if vlm_model == "LLMStudio":
+                # Guardar URL y Model Identifier en la sesión
+                st.session_state.vlm_model_url = st.text_input(
+                    "URL del modelo VLM",
+                    value=st.session_state.get("vlm_model_url", "http://localhost:1234/v1"),
+                    help="URL del modelo de visión y lenguaje para generar las notas"
+                )
+                st.session_state.vlm_model_id = st.text_input(
+                    "Model Identifier VLM",
+                    value=st.session_state.get("vlm_model_id", "qwen2-vl-7b-instruct"),
+                    help="Identifier del modelo VLM"
+                )
+                st.session_state.user_prompt = st.text_area(
+                    "Rol del orador (Prompt)",
+                    value="Eres un experto profesor en Geología. Se te van presentando diapositivas y tienes que generar las explicaciones para cada una de ellas.  Solo contesta con la explicación, nada más.",
+                    help="Define cómo se generarán las notas",
+                    height=100
+                )
+
+            elif vlm_model == "Gemini 2.0":
+                st.write("### Configuración de Gemini 2.0")
+                api_key = st.text_input("API Key", key="gemini_api_key")
+                # Se solicita también el identificador del modelo, en el caso de Gemini no hay URL
+                model_id = st.text_input("Model Identifier", value=st.session_state.get("gemini_model_id", "gemini-2.0-flash"), key="gemini_model_id")
+                st.session_state.user_prompt = st.text_area(
+                    "Rol del orador (Prompt)",
+                    value="Eres un experto profesor en Geología. Se te van presentando diapositivas y tienes que generar las explicaciones para cada una de ellas.  Solo contesta con la explicación, nada más.",
+                    help="Define cómo se generarán las notas",
+                    height=100
+                )
+
+                # Usar un key distinto, asignando el valor a una variable local
+                st.number_input("Tiempo de espera entre peticiones (ms)", min_value=0, value=0, step=100, key="gem_wait_time")
+
+                st.number_input("Máximo de tokens", min_value=1, value=100, step=1, key="max_tokens")
+
+    with col_preview:
+        st.write("### Preview de Diapositivas")
+        col1, col2, col3 = st.columns([1,3,1])
+        num_slides = len(st.session_state.slides_images)
+        slide_number = st.number_input("Diapositiva", min_value=1, max_value=num_slides, value=1, step=1)
+        slide_index = slide_number - 1
+        with col2:
+            st.image(st.session_state.slides_images[slide_index], caption=f"Diapositiva {slide_number}", use_container_width=True)
+        note = st.session_state.slides_notes[slide_index]
+        st.session_state.slides_notes[slide_index] = st.text_area(f"Notas para la diapositiva {slide_number}", value=note, height=68)
+        # Nuevos botones de generación de notas en el preview
+        col_gen1, col_gen2 = st.columns(2)
+        with col_gen1:
+            if st.button("Generar Nota", key="gen_current_note", use_container_width=True):
+                with st.spinner("Generando nota para la diapositiva..."):
+                    if st.session_state.vlm_model == "LLMStudio":
+                        vlm = get_vlm("LLMStudio", st.session_state.vlm_model_url, st.session_state.vlm_model_id)
+                    else:  # Gemini 2.0
+                        if not st.session_state.get("gemini_api_key"):
+                            st.error("Por favor ingresa la API Key para Gemini 2.0")
+                            st.stop()
+                        model_id = st.session_state.get("gemini_model_id", "gemini-2.0-flash")
+                        vlm = get_vlm("Gemini 2.0", "", model_id, st.session_state.gemini_api_key)
+                    st.session_state.slides_notes[slide_index] = vlm.process_single_slide(
+                        st.session_state.slides_images[slide_index],
+                        st.session_state.user_prompt,
+                        st.session_state.max_tokens  # se pasa max_tokens
+                    )
+                    st.success("✅ Nota generada correctamente")
+                st.rerun()
+
+        with col_gen2:
+            if st.button("Generar Notas para todas", key="gen_all_notes", use_container_width=True):
+                if st.session_state.vlm_model == "LLMStudio":
+                    vlm = get_vlm("LLMStudio", st.session_state.vlm_model_url, st.session_state.vlm_model_id)
+                else:
+                    if not st.session_state.get("gemini_api_key"):
+                        st.error("Por favor ingresa la API Key para Gemini 2.0")
+                        st.stop()
+                    base_url = st.session_state.get("gemini_base_url", "http://localhost:1234/v1")
+                    model_id = st.session_state.get("gemini_model_id", "gemini-default")
+                    vlm = get_vlm("Gemini 2.0", base_url, model_id, st.session_state.gemini_api_key)
+                all_notes = []
+                total = len(st.session_state.slides_images)
+                progress_bar = st.progress(0)
+                for idx, image in enumerate(st.session_state.slides_images):
+                    note = vlm.process_single_slide(
+                        image,
+                        st.session_state.user_prompt,
+                        st.session_state.max_tokens  # se pasa max_tokens
+                    )
+                    all_notes.append(note)
+                    progress_bar.progress((idx + 1) / total)
+                    if st.session_state.vlm_model == "Gemini 2.0":
+                        # Recuperar el valor usando el key modificado
+                        gem_wait_time = st.session_state.get("gem_wait_time", 0)
+                        time.sleep(gem_wait_time / 1000)
+                st.session_state.slides_notes = all_notes
+                st.success("✅ Notas generadas correctamente")
+                st.rerun()
+
+        col_nav1, col_nav2 = st.columns([1, 1])
+        with col_nav1:
+            if st.button("⬅️ Atrás", use_container_width=True):
+                st.session_state.step -= 1
+                st.rerun()
+        with col_nav2:
+            if st.button("✨ Siguiente ✨", use_container_width=True):
+                st.session_state.step += 1
+                st.rerun()
+
+# Función para el Paso 3: Configurar Audio
+def step_configure_audio():
+    if 'slides_notes_audios' not in st.session_state:
+        st.session_state.slides_notes_audios = [None] * len(st.session_state.slides_notes)
+    col_config_audio, col_preview_audio = st.columns(2)
+    with col_config_audio:
+        st.write("### Configurar Audio")
+        # Actualizamos las opciones de TTS para incluir Kokoro v1
+        tts_provider_selected = st.selectbox(
+            "Proveedor de TTS",
+            options=["elevenlabs", "Kokoro v1"],
+            key='tts_provider'
+        )
+        if tts_provider_selected == 'elevenlabs':
+            st.write("### Configuración de ElevenLabs")
+            st.write("API para generar audio a partir de texto.")
+            api_key = st.text_input("Clave de API", key='elevenlabs_api_key')
+            if not api_key:
+                st.error("Por favor ingresa la Clave de API")
+        else:  # Kokoro v1
+            st.write("### Configuración de Kokoro v1")
+            st.info("Modelo open source, sin necesidad de API Key. Pero hay que seleccionar voz liga a idioma.")
+            map_all_voices = KokoroTTS.get_available_voices()
+            voice_id = st.selectbox("Voz para la generación de audio", options=map_all_voices.keys(), format_func=lambda x: map_all_voices[x], key='kokoro_voice')
+
+        # ...existing navegación...
+        col_nav1, col_nav2 = st.columns([1, 1])
+        with col_nav1:
+            if st.button("⬅️ Atrás", use_container_width=True):
+                st.session_state.step -= 1
+                st.rerun()
+        with col_nav2:
+            if st.button("✨ Siguiente ✨", use_container_width=True):
+                st.session_state.step += 1
+                st.rerun()
+    with col_preview_audio:
+        st.write("### Preview de Diapositivas con audio")
+        num_slides = len(st.session_state.slides_images)
+        slide_number = st.number_input("Diapositiva", min_value=1, max_value=num_slides, value=1, step=1)
+        slide_index = slide_number - 1
+        col_img, col_audio = st.columns([1, 1])
+        with col_img:
+            st.image(st.session_state.slides_images[slide_index], caption=f"Diapositiva {slide_number}", use_container_width=True)
+        with col_audio:
+            if st.button("Generar audio para todas las diapositivas", key="gen_all_audio_btn"):
+                # Usar la fábrica para instanciar el proveedor correspondiente
+                provider = tts_provider_selected
+                if provider == "elevenlabs":
+                    api_key = st.session_state.get("elevenlabs_api_key", "")
+                    if not api_key:
+                        st.error("Por favor ingresa la Clave de API en la configuración.")
+                        st.stop()
+                    tts_client = get_tts_provider(provider, api_key)
+                else:
+                    tts_client = get_tts_provider(provider)
+                map_all_voices = tts_client.get_available_voices()
+                # Seleccionar voz, por defecto se usa la primera, o se puede agregar widget específico
+                voice_id = next(iter(map_all_voices.keys()), None)
+                progress_bar = st.progress(0)
+                progress_text = st.empty()
+                total = len(st.session_state.slides_notes)
+                for idx, note in enumerate(st.session_state.slides_notes):
+                    progress_bar.progress((idx + 1) / total)
+                    progress_text.text(f"Generando audio para diapositiva {idx + 1} de {total}")
+                    if note.strip():
+                        st.session_state.slides_notes_audios[idx] = tts_client.synthesize_text(voice_id, note)
+                progress_bar.empty()
+                progress_text.empty()
+                st.success("Todos los audios generados correctamente.")
+                st.rerun()
+            new_note = st.text_area(f"Notas para la diapositiva {slide_number}", value=st.session_state.slides_notes[slide_index], height=68)
+            st.session_state.slides_notes[slide_index] = new_note
+            if new_note.strip() and st.button("Generar Audio", key=f"gen_audio_{slide_index}", use_container_width=True):
+                provider = tts_provider_selected
+                if provider == "elevenlabs":
+                    api_key = st.session_state.get("elevenlabs_api_key", "")
+                    if not api_key:
+                        st.error("Por favor ingresa la Clave de API en la configuración.")
+                        st.stop()
+                    tts_client = get_tts_provider(provider, api_key)
+                else:
+                    tts_client = get_tts_provider(provider)
+                map_all_voices = tts_client.get_available_voices()
+                voice_id = next(iter(map_all_voices.keys()), None)
+                st.session_state.slides_notes_audios[slide_index] = tts_client.synthesize_text(voice_id, new_note)
+                st.success("Audio generado correctamente.")
+            if st.session_state.slides_notes_audios[slide_index]:
+                st.audio(st.session_state.slides_notes_audios[slide_index], format="audio/mp3")
+
+# Función para el Paso 4: Generar Video
+def step_generate_video():
+    st.write("### Generar Video")
+    bloque1, bloque2 = st.columns(2)
+    with bloque1:
+        transition = st.selectbox(
+            "Transición entre diapositivas",
+            options=['fade', 'slide', 'none'],
+            format_func=lambda x: 'Desvanecer' if x == 'fade' else 'Deslizar' if x == 'slide' else 'Ninguna',
+            key='transition'
+        )
+        default_duration = st.number_input("Duración (segundos) para diapositivas sin audio", min_value=1.0, value=3.0, step=0.5, key="default_duration")
+        fps = st.number_input("FPS (cuadros por segundo)", min_value=1, value=30, step=1, key="fps")
+        transition_silence = st.number_input("Tiempo de silencio en transiciones (segundos)", min_value=0.0, value=0.0, step=0.5, key="transition_silence")
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("⬅️ Atrás", use_container_width=True):
+                st.session_state.step -= 1
+                st.rerun()
+        with col_btn2:
+            if st.button("🚀 Generar Video 🚀", use_container_width=True):
+                
+                output_file = "final_video.mp4"
+                with st.spinner("Generando frames del video..."):
+                    generated_video = merge_slides_to_video(
+                        st.session_state.slides_images,
+                        st.session_state.slides_notes_audios,
+                        default_duration,
+                        output_file,
+                        fps,
+                        transition_silence,
+                        progress_callback=None  # Sin callback de progreso
+                    )
+                if generated_video:
+                    st.session_state.generated_video = generated_video
+                    st.success("🎉 Video generado exitosamente 🚀")
+                else:
+                    st.error("❌ No se pudo generar el video. 😢")
+    with bloque2:
+        # Diseño 3 columnas con mas espacio en el medio
+        col1, col2, col3 = st.columns([1, 3, 1])
+
+        if st.session_state.get("generated_video"):
+            with col2:
+                with st.container():
+                    video_bytes = get_file_bytes(st.session_state.generated_video)
+                    st.video(video_bytes)
+                    st.download_button(label="Descargar Video", data=video_bytes, file_name="final_video.mp4", mime="video/mp4", key="download_video", use_container_width=True)
+    
+    if st.button("🔄 Volver al inicio y borrar información", use_container_width=True):
+        # limpiar toda la sesión
+        reset_state()
+        st.rerun()
+
+def main():
+    with st.spinner("Cargando módulos, por favor espera..."):
+        load_heavy_modules()
+    init_session_state()
+    steps = ["📤 Subir Presentación", "✍️ Configurar Notas", "🎙️ Configurar Audio", "🎬 Generar Video"]
+    st.markdown("## Convertir Presentación a Video 🎞️")
+    st.progress(st.session_state.step / (len(steps) - 1))
+    st.write(f"### Paso {st.session_state.step + 1}: {steps[st.session_state.step]}")
+    if st.session_state.step == 0:
+        step_upload()
+    elif st.session_state.step == 1:
+        step_configure_notes()
+    elif st.session_state.step == 2:
+        step_configure_audio()
+    elif st.session_state.step == 3:
+        step_generate_video()
+
+#-----------------------------------------------------------------------
+main()
