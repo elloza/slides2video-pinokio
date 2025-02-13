@@ -1,12 +1,25 @@
 import streamlit as st
-
+import base64
 
 if __name__ == "__main__":
     # Configuración de página debe ir ANTES de cualquier otro comando de Streamlit
     st.set_page_config(
         page_title="Slides2Video",
-        page_icon="📄",
+        page_icon="favicon.ico",
         layout="wide"
+    )
+
+    # Mostrar el logo usando base64 en la sidebar
+    with open("logo.png", "rb") as f:
+        data = base64.b64encode(f.read()).decode("utf-8")
+
+    st.sidebar.markdown(
+        f"""
+        <div style="display:table;margin-left:20%;">
+            <img src="data:image/png;base64,{data}" width="100" height="100">
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     # Definición de páginas

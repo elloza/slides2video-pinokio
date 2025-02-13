@@ -138,7 +138,6 @@ def step_configure_notes():
                     help="Define cómo se generarán las notas",
                     height=100
                 )
-
                 
     with col_preview:
         st.write("### Preview de Diapositivas")
@@ -234,6 +233,7 @@ def step_configure_notes():
                 progress_text.empty()
                 st.session_state.slides_notes = translated_notes
                 st.success("✅ Todas las notas traducidas correctamente")
+                st.rerun()
 
         col_nav1, col_nav2 = st.columns([1, 1])
         with col_nav1:
