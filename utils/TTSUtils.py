@@ -33,7 +33,9 @@ class ElevenLabsTTS(TTSEngine):
             response = self.client.voices.get_all()
             voices_map = {}
             for voice in response.voices:
-                voices_map[voice.voice_id] = f"{voice.name} - {voice.labels['use_case']} - {voice.labels['description']}"
+                use_case = voice.labels.get('use_case', 'N/A')
+                description = voice.labels.get('description', 'N/A')
+                voices_map[voice.voice_id] = f"{voice.name} - {use_case} - {description}"
             return voices_map
         except Exception as e:
             return {}

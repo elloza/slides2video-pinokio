@@ -1,4 +1,8 @@
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+import torch
+import os
+
+torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)] 
 
 """
 Módulo: TranlationUtils.py
@@ -8,10 +12,10 @@ utilizando Open-NLLB de Hugging Face y aplica el patrón singleton.
 """
 
 class Translator:
-    def __init__(self, model_name: str = "facebook/nllb-200-distilled-600M", use_auth_token: bool = False) -> None:
+    def __init__(self, model_name: str = "facebook/nllb-200-distilled-600M", token: bool = False) -> None:
         if not hasattr(self, "model"):
             self.model_name = model_name
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name, use_auth_token=use_auth_token)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name, token=token)
 
     def translate_notes(self, source_lang: str, target_lang: str, text: str) -> str:
         """
@@ -30,7 +34,7 @@ class Translator:
         """
         tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
-            use_auth_token=False,
+            token=False,
             src_lang=source_lang,
             tgt_lang=target_lang,
             use_fast=False  # Forzamos el uso del tokenizador lento

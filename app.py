@@ -1,7 +1,6 @@
 import streamlit as st
 
 
-
 if __name__ == "__main__":
     # Configuración de página debe ir ANTES de cualquier otro comando de Streamlit
     st.set_page_config(
