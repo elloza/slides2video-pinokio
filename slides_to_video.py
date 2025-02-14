@@ -68,6 +68,9 @@ def step_upload():
 
 # Función para el Paso 2: Configurar Notas
 def step_configure_notes():
+
+    PROMPT_DEFAULT = "Eres un experto profesor en TEMA. Se te presenta una diapositiva de tu clase y tienes que generar las explicaciones en primera persona del singular o del plural, explicando el tema del que tratan. Solo contesta con la explicación, nada más, y como si se tratara de una explicación hablada."
+
     col_config, col_preview = st.columns(2)
     with col_config:
         languages = get_language_options()
@@ -104,14 +107,22 @@ def step_configure_notes():
                     value=st.session_state.get("vlm_model_url", "http://localhost:1234/v1"),
                     help="URL del modelo de visión y lenguaje para generar las notas"
                 )
-                st.session_state.vlm_model_id = st.text_input(
-                    "Model Identifier VLM",
-                    value=st.session_state.get("vlm_model_id", "qwen2-vl-7b-instruct"),
-                    help="Identifier del modelo VLM"
-                )
+
+                col1, col2,= st.columns([1,1])
+
+                with col1:
+                    st.session_state.vlm_model_id = st.text_input(
+                        "Model Identifier VLM",
+                        value=st.session_state.get("vlm_model_id", "qwen2-vl-7b-instruct"),
+                        help="Identifier del modelo VLM"
+                    )
+
+                with col2:
+                    st.number_input("Maxtokens", min_value=1, value=500, step=1, key="max_tokens", help="Número máximo de tokens en la respuesta generada por el modelo")
+
                 st.session_state.user_prompt = st.text_area(
                     "Rol del orador (Prompt)",
-                    value="Eres un experto profesor en Geología. Se te van presentando diapositivas y tienes que generar las explicaciones para cada una de ellas.  Solo contesta con la explicación, nada más.",
+                    value=PROMPT_DEFAULT,
                     help="Define cómo se generarán las notas",
                     height=100
                 )
@@ -119,7 +130,6 @@ def step_configure_notes():
             elif vlm_model == "Gemini 2.0":
                 st.write("#### Configuración de Gemini 2.0")
 
-                # 2 columnas
                 col1, col2, col3, col4 = st.columns([2,1,1,1])
                 with col1:
                     api_key = st.text_input("API Key *", key="gemini_api_key")
@@ -134,7 +144,7 @@ def step_configure_notes():
 
                 st.session_state.user_prompt = st.text_area(
                     "Rol del orador (Prompt)",
-                    value="Eres un experto profesor en TEMA. Se te presenta una diapositiva de tu clase y tienes que generar las explicaciones en primera persona del singular o del plural, explicando el tema del que tratan. Solo contesta con la explicación, nada más, y como si se tratara de una explicación hablada..",
+                    value=PROMPT_DEFAULT,
                     help="Define cómo se generarán las notas",
                     height=100
                 )
