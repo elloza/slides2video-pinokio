@@ -12,3 +12,6 @@ google-genai
 kokoro>=0.3.4 
 soundfile
 # Pytorch
+
+# Web
+sphinxcontrib-googleanalytics
