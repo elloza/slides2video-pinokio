@@ -57,7 +57,7 @@ def merge_slides_to_video(slide_images, slide_audios, default_duration, output_f
             clips.append(slide_clip)
             # Insertar clip de silencio entre diapositivas, excepto después de la última.
             if transition_silence > 0.0 and idx < total_slides - 1:
-                silence_clip = ColorClip(size=slide_clip.size, color=(0,0,0)).with_duration(transition_silence)
+                silence_clip = slide_clip.without_audio().with_duration(transition_silence)
                 clips.append(silence_clip)
             if progress_callback:
                 progress_callback(stage='¡Diapositiva creada! ¡Qué guay!', current=idx+1, total=total_slides)

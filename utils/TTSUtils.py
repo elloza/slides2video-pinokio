@@ -1,10 +1,13 @@
+# Esto necesita un refactor importante. La abstracción es un poco regulera
 import abc
-from elevenlabs import voices  # Asumir que la SDK tiene este módulo
-from elevenlabs import play
 import io
 import numpy as np
 import soundfile as sf
-from kokoro import KPipeline
+import torch
+from TTS.api import TTS
+import os
+
+os.environ["COQUI_TOS_AGREED"] = "1"
 
 # Nueva interfaz/TTS engine base
 class TTSEngine(abc.ABC):
@@ -40,7 +43,7 @@ class ElevenLabsTTS(TTSEngine):
         except Exception as e:
             return {}
 
-    def synthesize_text(self, voice_id: str, text: str, format="mp3_44100_128", model_id="eleven_multilingual_v2") -> bytes:
+    def synthesize_text(self, voice_id: str, text: str, format="mp3_44100_128", model_id="eleven_multilingual_v2", **kwargs) -> bytes:
         try:
             audio_generator = self.client.text_to_speech.convert(
                 text=text,
@@ -52,53 +55,61 @@ class ElevenLabsTTS(TTSEngine):
         except Exception as e:
             return b""
 
-# Nueva implementación para Kokoro v1 (modelo open source)
-class KokoroTTS(TTSEngine):
+class XTTSv2(TTSEngine):
+    _instance = None
 
-    def __init__(self,voice_id: str = 'a') -> None:
-        self.voice_id = voice_id
-        self.pipeline  = KPipeline(lang_code=voice_id)
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(XTTSv2, cls).__new__(cls)
+            cls._instance.voices = [
+                "Aaron Dreschner", "Abrahan Mack", "Adde Michal", "Alexandra Hisakawa", "Alison Dietlinde",
+                "Alma María", "Ana Florence", "Andrew Chipper", "Annmarie Nele", "Asya Anara", "Badr Odhiambo",
+                "Baldur Sanjin", "Barbora MacLean", "Brenda Stern", "Camilla Holmström", "Chandra MacFarland",
+                "Claribel Dervla", "Craig Gutsy", "Daisy Studious", "Damien Black", "Damjan Chapman",
+                "Dionisio Schuyler", "Eugenio Mataracı", "Ferran Simen", "Filip Traverse", "Gilberto Mathias",
+                "Gitta Nikolina", "Gracie Wise", "Henriette Usha", "Ige Behringer", "Ilkin Urbano", "Kazuhiko Atallah",
+                "Kumar Dahl", "Lidiya Szekeres", "Lilya Stainthorpe", "Ludvig Milivoj", "Luis Moray", "Maja Ruoho",
+                "Marcos Rudaski", "Narelle Moon", "Nova Hogarth", "Rosemary Okafor", "Royston Min", "Sofia Hellen",
+                "Suad Qasim", "Szofi Granger", "Tammie Ema", "Tammy Grit", "Tanja Adelina", "Torcull Diarmuid",
+                "Uta Obando", "Viktor Eka", "Viktor Menelaos", "Vjollca Johnnie", "Wulf Carlevaro", "Xavier Hayasaka",
+                "Zacharie Aimilios", "Zofija Kendrick"
+            ]
+            cls._instance.language_codes = {
+                "en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian",
+                "pt": "Portuguese", "pl": "Polish", "tr": "Turkish", "ru": "Russian", "nl": "Dutch",
+                "cs": "Czech", "ar": "Arabic", "zh-cn": "Chinese", "ja": "Japanese", "hu": "Hungarian",
+                "ko": "Korean", "hi": "Hindi"
+            }
+            cls._instance.device = "cuda" if torch.cuda.is_available() else "cpu"
+            cls._instance.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(cls._instance.device)
+        return cls._instance
+
+    def get_available_voices(self) -> dict:
+        return {voice: voice for voice in self.voices}
     
-    # funcion estatica con las voces disponibles
-    @staticmethod
-    def get_available_voices() -> dict:
-        # Retornar voces disponibles en Kokoro, en este caso ligadas a idiomas
-        return {
-            'e': 'Spanish (es)',
-            'f': 'French (fr-fr)',
-            'h': 'Hindi (hi)',
-            'i': 'Italian (it)',
-            'p': 'Brazilian Portuguese (pt-br)',
-            'a': 'American English',
-            'b': 'British English',
-            'j': 'Japanese',
-            'z': 'Mandarin Chinese'
-        }
-    
+    def get_available_languages(self) -> dict:
+        return {lang: code for lang, code in self.language_codes.items()}
+
     def synthesize_text(self, voice_id: str, text: str, **kwargs) -> bytes:
-        # Refactorización: generar audio usando Kokoro
         try:
-            speed = kwargs.get("speed", 1)
-            split_pattern = kwargs.get("split_pattern", r'\n+')
-            generator = self.pipeline(text, voice=voice_id, speed=speed, split_pattern=split_pattern)
-            segments = []
-            for i, (gs, ps, audio) in enumerate(generator):
-                segments.append(audio)
-            # Concatenar los segmentos (se asume que los audios son arrays de numpy)
-            all_audio = np.concatenate(segments) if segments else np.array([])
-            buffer = io.BytesIO()
-            sf.write(buffer, all_audio, samplerate=24000, format="WAV")
-            return buffer.getvalue()
+            # TODO: Implementar referencia de voz
+            language = kwargs.get("reference_wav", None)
+            language = kwargs.get("language", "es")
+            result = self.model.tts(text=text, speaker=voice_id, language=language)
+            audio = np.array(result)
+            with io.BytesIO() as output:
+                sf.write(output, audio, 24000, format='WAV')
+                return output.getvalue()
         except Exception as e:
             return b""
 
 # Función fábrica para instanciar el proveedor deseado
-def get_tts_provider(provider: str, api_key: str = None, voice_id: str = 'a') -> TTSEngine:
+def get_tts_provider(provider: str, api_key: str = None, voice_id: str = 'a', reference_voice: str = None) -> TTSEngine:
     if provider.lower() == "elevenlabs":
         if not api_key:
             raise ValueError("Se requiere API Key para ElevenLabs")
         return ElevenLabsTTS(api_key)
-    elif provider.lower() == "kokoro v1":
-        return KokoroTTS(voice_id)
+    elif provider.lower() == "xttsv2":
+        return XTTSv2()
     else:
         raise ValueError(f"Proveedor TTS no soportado: {provider}")

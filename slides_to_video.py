@@ -2,18 +2,32 @@ import streamlit as st
 # Removed heavy imports here
 
 def load_heavy_modules():
+
+    my_bar = st.progress(0, text="Cargando módulos, por favor espera...")
     global detect_file_type, get_file_stats, reset_state, init_session_state, get_language_options
     global extract_pdf_slides, extract_pptx_slides, get_file_bytes, get_vlm
-    global get_tts_provider, ElevenLabsTTS, KokoroTTS, Translator
+    global get_tts_provider, Translator
     global merge_slides_to_video
+    # Loading File Utils
+    my_bar.progress(10, text="Cargando FileUtils...")
     from utils.FileUtils import (
         detect_file_type, get_file_stats, reset_state, init_session_state,
         get_language_options, extract_pdf_slides, extract_pptx_slides, get_file_bytes
     )
+    my_bar.progress(35, text="Cargando VLMUtils...")
     from utils.VLMUtils import get_vlm
-    from utils.TTSUtils import get_tts_provider, ElevenLabsTTS, KokoroTTS
+    my_bar.progress(60, text="Cargando TTSUtils...")
+    from utils.TTSUtils import get_tts_provider
+    my_bar.progress(75, text="Cargando TranlationUtils...")
     from utils.TranlationUtils import Translator
+    my_bar.progress(90, text="Cargando VideoUtils...")
     from utils.VideoUtils import merge_slides_to_video
+    my_bar.progress(100, text="Módulos cargados!")
+
+    # Ocultar la barra de progreso y el texto
+    my_bar.empty()
+
+
 import time
 
 
@@ -69,7 +83,7 @@ def step_upload():
 # Función para el Paso 2: Configurar Notas
 def step_configure_notes():
 
-    PROMPT_DEFAULT = "Eres un experto profesor en TEMA. Se te presenta una diapositiva de tu clase y tienes que generar las explicaciones en primera persona del singular o del plural, explicando el tema del que tratan. Solo contesta con la explicación, nada más, y como si se tratara de una explicación hablada."
+    PROMPT_DEFAULT = "Eres un experto profesor en TEMA. Se te presenta una diapositiva de tu clase y tienes que generar las explicaciones en primera persona del singular o del plural, explicando el tema del que tratan. Solo contesta con la explicación, nada más, y como si se tratara de una explicación hablada a ellos en clase."
 
     col_config, col_preview = st.columns(2)
     with col_config:
@@ -132,7 +146,7 @@ def step_configure_notes():
 
                 col1, col2, col3, col4 = st.columns([2,1,1,1])
                 with col1:
-                    api_key = st.text_input("API Key *", key="gemini_api_key")
+                    api_key = st.text_input("API Key *", type="password", key="gemini_api_key")
                 with col2:
                     # Se solicita también el identificador del modelo, en el caso de Gemini no hay URL
                     model_id = st.text_input("Model Identifier", value=st.session_state.get("gemini_model_id", "gemini-2.0-flash"), key="gemini_model_id")
@@ -265,13 +279,13 @@ def step_configure_audio():
         st.write("### Configurar Audio")
         tts_provider_selected = st.selectbox(
             "Proveedor de TTS",
-            options=["elevenlabs", "Kokoro v1"],
+            options=["elevenlabs", "xttsv2"],
             key='tts_provider'
         )
         if tts_provider_selected == 'elevenlabs':
             st.write("### Configuración de ElevenLabs")
             st.write("API para generar audio a partir de texto.")
-            api_key = st.text_input("Clave de API", key='elevenlabs_api_key')
+            api_key = st.text_input("Clave de API", type="password", key='elevenlabs_api_key')
             if not api_key:
                 st.error("Por favor ingresa la Clave de API")
             if api_key:
@@ -283,11 +297,19 @@ def step_configure_audio():
                     format_func=lambda x: map_all_voices[x]
                 )
                 st.session_state.selected_voice = selected_voice  # almacenar la voz seleccionada
-        else:
-            st.write("### Configuración de Kokoro v1")
-            st.info("Modelo open source, sin necesidad de API Key. Pero hay que seleccionar voz ligada al idioma.")
-            map_all_voices = KokoroTTS.get_available_voices()
-            voice_id = st.selectbox("Voz para la generación de audio", options=list(map_all_voices.keys()), format_func=lambda x: map_all_voices[x], key='kokoro_voice')
+        elif tts_provider_selected == 'xttsv2':
+            st.write("### Configuración de XTTSv2")
+            st.info("Modelo open source, sin necesidad de API Key. Pero hay que indicar el idioma y al usar este modelo aceptas https://coqui.ai/cpml.txt")
+            # Spinner para cargar el modelo
+            with st.spinner("Cargando modelo...descargando todo lo necesario..."):
+                tts_client = get_tts_provider(tts_provider_selected)
+            map_all_voices = tts_client.get_available_voices()
+            voice_id = st.selectbox("Voz para la generación de audio", options=list(map_all_voices.keys()), format_func=lambda x: map_all_voices[x], key='selected_voice')
+            # Language (de los disponibles por el tts provider)
+            st.write("### Configuración de Idioma")
+            languages = get_tts_provider(tts_provider_selected).get_available_languages()
+            language = st.selectbox("Idioma", options=languages.keys(), format_func=lambda x: languages[x], key='language')
+    
     with col_preview_audio:
         st.write("### Preview de Diapositivas con audio")
         num_slides = len(st.session_state.slides_images)
@@ -311,15 +333,18 @@ def step_configure_audio():
                     voice_id = st.session_state.get("selected_voice")
                 else:
                     tts_client = get_tts_provider(provider)
-                    voice_id = st.session_state.get("kokoro_voice")
+                    voice_id = st.session_state.get("selected_voice")
+                    language = st.session_state.get("language", "Spanish")
+
                 progress_bar = st.progress(0)
                 progress_text = st.empty()
                 total = len(st.session_state.slides_notes)
+
                 for idx, note in enumerate(st.session_state.slides_notes):
                     progress_bar.progress((idx + 1) / total)
                     progress_text.text(f"Generando audio para diapositiva {idx + 1} de {total}")
                     if note.strip():
-                        st.session_state.slides_notes_audios[idx] = tts_client.synthesize_text(voice_id, note)
+                        st.session_state.slides_notes_audios[idx] = tts_client.synthesize_text(voice_id, note, language=language)
                 progress_bar.empty()
                 progress_text.empty()
                 st.success("Todos los audios generados correctamente.")
@@ -336,9 +361,9 @@ def step_configure_audio():
                     voice_id = st.session_state.get("selected_voice")
                 else:
                     tts_client = get_tts_provider(provider)
-                    voice_id = st.session_state.get("kokoro_voice")
+                    voice_id = st.session_state.get("selected_voice")
                 
-                st.session_state.slides_notes_audios[slide_index] = tts_client.synthesize_text(voice_id, new_note)
+                st.session_state.slides_notes_audios[slide_index] = tts_client.synthesize_text(voice_id, new_note, language=language)
                 st.success("Audio generado correctamente.")
                 st.rerun()
                 
@@ -409,14 +434,13 @@ def step_generate_video():
                 st.session_state.step -= 1
                 st.rerun()
     with col_nav2:
-        if st.button("🔄 Volver al inicio y borrar información", use_container_width=True):
+        if st.button("🔄 Volver al inicio y borrar información", use_container_width=True, type="primary"):
             # limpiar toda la sesión
             reset_state()
             st.rerun()
 
 def main():
-    with st.spinner("Cargando módulos, por favor espera..."):
-        load_heavy_modules()
+    load_heavy_modules()
     init_session_state()
     steps = ["📤 Subir Presentación", "✍️ Configurar Notas", "🎙️ Configurar Audio", "🎬 Generar Video"]
     st.markdown("## Convertir Presentación a Video 🎞️")

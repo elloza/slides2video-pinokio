@@ -9,9 +9,11 @@ elevenlabs
 moviepy
 proglog
 google-genai
-kokoro>=0.3.4 
 soundfile
+coqui-tts
+torch
+torchvision
+torchaudio
 # Pytorch
-
 # Web
-sphinxcontrib-googleanalytics
+# sphinxcontrib-googleanalytics
