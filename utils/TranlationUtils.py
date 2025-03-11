@@ -2,7 +2,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 import os
 
-torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)] 
+torch.classes.__path__ = [os.path.join(torch.__path__[0], torch.classes.__file__)]
 
 """
 Módulo: TranlationUtils.py
@@ -14,8 +14,9 @@ utilizando Open-NLLB de Hugging Face y aplica el patrón singleton.
 class Translator:
     def __init__(self, model_name: str = "facebook/nllb-200-distilled-600M", token: bool = False) -> None:
         if not hasattr(self, "model"):
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.model_name = model_name
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name, token=token)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name, token=token).to(self.device)
 
     def translate_notes(self, source_lang: str, target_lang: str, text: str) -> str:
         """
@@ -39,7 +40,7 @@ class Translator:
             tgt_lang=target_lang,
             use_fast=False  # Forzamos el uso del tokenizador lento
         )
-        inputs = tokenizer(text, return_tensors="pt")
+        inputs = tokenizer(text, return_tensors="pt").to(self.device)
         max_length = len(text) * 2
         translated_tokens = self.model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang), max_length=max_length)
         translation = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
