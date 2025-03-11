@@ -4,6 +4,23 @@ import io
 import tempfile
 from PIL import Image
 import numpy as np
+from proglog import TqdmProgressBarLogger
+import queue
+import threading
+import streamlit as st
+
+
+class StreamlitLogger(TqdmProgressBarLogger):
+    """Logger personalizado que envía el progreso a una cola en lugar de modificar la UI."""
+    def __init__(self, progress_queue):
+        super().__init__(print_messages=False)
+        self.progress_queue = progress_queue
+
+    def bars_callback(self, bar, attr, value, old_value):
+        super().bars_callback(bar, attr, value, old_value)
+        if self.bars[bar]['total'] > 0:
+            progress = value / self.bars[bar]['total']
+            self.progress_queue.put(progress)  # Enviar progreso a la cola
 
 
 def create_slide_clip(slide_image, audio_path, default_duration):
@@ -37,7 +54,7 @@ def create_slide_clip(slide_image, audio_path, default_duration):
         clip = ImageClip(image_data).with_duration(default_duration)
     return clip
 
-def merge_slides_to_video(slide_images, slide_audios, default_duration, output_file, fps=30, transition_silence=0.0, progress_callback=None):
+def merge_slides_to_video(slide_images, slide_audios, default_duration, output_file, fps=30, transition_silence=0.0, progress_queue=None):
     """
     Une diapositivas y audios en un video final.
     slide_images: lista de imágenes (rutas, arrays o binarios)
@@ -59,21 +76,37 @@ def merge_slides_to_video(slide_images, slide_audios, default_duration, output_f
             if transition_silence > 0.0 and idx < total_slides - 1:
                 silence_clip = slide_clip.without_audio().with_duration(transition_silence)
                 clips.append(silence_clip)
-            if progress_callback:
-                progress_callback(stage='¡Diapositiva creada! ¡Qué guay!', current=idx+1, total=total_slides)
-        
+
+            # Enviar progreso del procesamiento de diapositivas
+            if progress_queue:
+                progress_queue.put((f"Procesando diapositiva {idx+1} de {total_slides}...", (idx + 1) / total_slides * 50))
+
         final_clip = concatenate_videoclips(clips, method="compose")
         
-        # Notificar el inicio de la escritura del video con un toque divertido
-        if progress_callback:
-            progress_callback(stage='¡A darle al video, que se hace esperar la diversión!', current=0, total=100)
-        
-        # Usar el logger simple basado en Proglog para write_videofile
-        final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac", fps=fps, logger="bar")
-        
-        # Notificar que la escritura finalizó de forma festiva
-        if progress_callback:
-            progress_callback(stage='¡Vídeo completado!', current=100, total=100)
+
+        # Notificar que empieza la renderización
+        if progress_queue:
+            progress_queue.put(("Generando video...", 60))
+
+        # Crear la cola de progreso para el renderizado
+        render_progress_queue = queue.Queue()
+        logger = StreamlitLogger(render_progress_queue)
+
+        def update_progress():
+            while True:
+                try:
+                    progress = render_progress_queue.get(timeout=1)
+                    if progress_queue:
+                        progress_queue.put(("Renderizando video...esto puede tomar unos minutos...", 60 + progress * 40))
+                except queue.Empty:
+                    break
+
+        threading.Thread(target=update_progress, daemon=True).start()
+        final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac", fps=fps, logger=logger)
+
+        # Cuando termina, establecer el progreso en 100%
+        if progress_queue:
+            progress_queue.put(("¡Vídeo completado!", 100))
     
     except Exception as e:
         # Mostar el motivo del error si algo falla

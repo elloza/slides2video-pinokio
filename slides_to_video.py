@@ -21,7 +21,6 @@ def load_heavy_modules():
     my_bar.progress(75, text="Cargando TranlationUtils...")
     from utils.TranlationUtils import Translator
     my_bar.progress(90, text="Cargando VideoUtils...")
-    from utils.VideoUtils import merge_slides_to_video
     my_bar.progress(100, text="Módulos cargados!")
 
     # Ocultar la barra de progreso y el texto
@@ -29,6 +28,9 @@ def load_heavy_modules():
 
 
 import time
+import threading
+import queue
+from utils.VideoUtils import merge_slides_to_video
 
 
 # Función para el Paso 1: Subir Presentación
@@ -400,26 +402,63 @@ def step_generate_video():
             fps = st.number_input("FPS (cuadros por segundo)", min_value=1, value=30, step=1, key="fps")
         
         if st.button("🚀 Generar Video 🚀", use_container_width=True, type="primary"):
+            
+            st.write("### Generar Video")
+            # Inicializar la cola de progreso
+            progress_queue = queue.Queue()
+            
+            # Barra de progreso y estado
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            slides_images = st.session_state.slides_images
+            slides_audios = st.session_state.slides_notes_audios
+            default_duration = st.session_state.default_duration
+            fps = st.session_state.fps
+            transition_silence = st.session_state.transition_silence
+
+            # Variable compartida para almacenar el resultado
+            video_output = {"path": None}
             output_file = "final_video.mp4"
-            with st.spinner("Generando frames del video... (Esto puede tardar unos minutos, sea paciente)"):
-                generated_video = merge_slides_to_video(
-                    st.session_state.slides_images,
-                    st.session_state.slides_notes_audios,
+
+            def run_video_generation():
+                video_output["path"] = merge_slides_to_video(
+                    slides_images,
+                    slides_audios,
                     default_duration,
                     output_file,
                     fps,
                     transition_silence,
-                    progress_callback=None  # Sin callback de progreso
+                    progress_queue
                 )
-            if generated_video:
-                st.session_state.generated_video = generated_video
+
+            # Lanzar el hilo de generación de video
+            thread = threading.Thread(target=run_video_generation, daemon=True)
+            thread.start()
+
+            # Leer la cola de progreso en el hilo principal
+            while thread.is_alive():
+                try:
+                    status, progress = progress_queue.get(timeout=0.5)
+                    progress_bar.progress(int(progress))
+                    status_text.text(status)
+                except queue.Empty:
+                    pass  # Si la cola está vacía, continuar
+
+            # Cuando el video esté listo, actualizar `st.session_state`
+            if video_output["path"]:
+                st.session_state.generated_video = video_output["path"]
                 st.success("🎉 Video generado exitosamente 🚀")
             else:
                 st.error("❌ No se pudo generar el video. 😢")
 
+            # Ocultar la barra de progreso y el texto
+            progress_bar.empty()
+            status_text.empty()
+
     with bloque2:
         # Diseño 3 columnas con mas espacio en el medio
-        col1, col2, col3 = st.columns([1, 3, 1])
+        col1, col2, col3 = st.columns([1, 8, 1])
 
         if st.session_state.get("generated_video"):
             with col2:
