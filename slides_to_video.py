@@ -443,7 +443,7 @@ def step_generate_video():
                 try:
                     status, progress = progress_queue.get(timeout=0.5)
                     progress_bar.progress(int(progress))
-                    status_text.text(status)
+                    status_text.text(status+f" {progress:.2f}%")
                 except queue.Empty:
                     pass  # Si la cola está vacía, continuar
 

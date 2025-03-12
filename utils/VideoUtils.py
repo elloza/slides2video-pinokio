@@ -86,7 +86,7 @@ def merge_slides_to_video(slide_images, slide_audios, default_duration, output_f
 
         # Notificar que empieza la renderización
         if progress_queue:
-            progress_queue.put(("Generando video...", 60))
+            progress_queue.put(("Generando slides del video...", 30))
 
         # Crear la cola de progreso para el renderizado
         render_progress_queue = queue.Queue()
