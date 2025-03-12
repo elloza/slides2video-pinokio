@@ -333,6 +333,7 @@ def step_configure_audio():
                         st.stop()
                     tts_client = get_tts_provider(provider, api_key)
                     voice_id = st.session_state.get("selected_voice")
+                    language = st.session_state.get("language", "Spanish")
                 else:
                     tts_client = get_tts_provider(provider)
                     voice_id = st.session_state.get("selected_voice")
@@ -361,6 +362,7 @@ def step_configure_audio():
                         st.stop()
                     tts_client = get_tts_provider(provider, api_key)
                     voice_id = st.session_state.get("selected_voice")
+                    language = st.session_state.get("language", "Spanish")
                 else:
                     tts_client = get_tts_provider(provider)
                     voice_id = st.session_state.get("selected_voice")

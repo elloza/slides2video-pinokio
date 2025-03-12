@@ -24,11 +24,12 @@ class ElevenLabsTTS(TTSEngine):
     _instance = None
 
     def __new__(cls, api_key: str):
-        if cls._instance is None:
+        if cls._instance is None or cls._instance.api_key != api_key:
             cls._instance = super(ElevenLabsTTS, cls).__new__(cls)
             cls._instance.api_key = api_key
             from elevenlabs.client import ElevenLabs  # Ajuste a la importación local
             cls._instance.client = ElevenLabs(api_key=api_key)
+
         return cls._instance
 
     def get_available_voices(self) -> dict:
