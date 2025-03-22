@@ -166,8 +166,6 @@ def extract_pptx_slides(uploaded_file):
 
         if sys.platform.startswith('win') and sys.version_info >= (3, 8):
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        else:
-            asyncio.set_event_loop_policy(None)
         
         # Convertir el PPTX a PDF usando pptx2pdfwasm
         converter = PPTXtoPDFConverter(headless=True, log_enabled=False, port=7777)
