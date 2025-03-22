@@ -7,10 +7,11 @@ import fitz  # PyMuPDF
 from pptx.util import Inches
 from PIL import Image
 from pptx.enum.shapes import MSO_SHAPE_TYPE
-import io
 import os
-import subprocess
 import tempfile
+from pptx2pdfwasm import PPTXtoPDFConverter
+import sys
+import asyncio
 
 
 def detect_file_type(file):
@@ -140,7 +141,7 @@ def extract_pptx_slides(uploaded_file):
     """
     Extrae imágenes y notas de cada slide de un archivo PPTX.
     
-    Las imágenes se obtienen convirtiendo el PPTX a PDF con LibreOffice en modo headless
+    Las imágenes se obtienen convirtiendo el PPTX a PDF con pptx2pdfwasm
     y extrayendo cada página del PDF en formato PNG.
     Las notas se extraen utilizando python-pptx.
     
@@ -162,29 +163,24 @@ def extract_pptx_slides(uploaded_file):
             pptx_path = tmp.name
         
         # Asegurar que el archivo temporal se cierre antes de la conversión
+
+        if sys.platform.startswith('win') and sys.version_info >= (3, 8):
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        else:
+            asyncio.set_event_loop_policy(None)
         
-        # Convertir el PPTX a PDF usando LibreOffice en modo headless
+        # Convertir el PPTX a PDF usando pptx2pdfwasm
+        converter = PPTXtoPDFConverter(headless=True, log_enabled=False, port=7777)
+        converter.start_server()
         try:
-            result = subprocess.run([
-                "soffice",
-                "--headless",
-                "--convert-to", "pdf",
-                pptx_path,
-                "--outdir", os.path.dirname(pptx_path)
-            ], check=True, capture_output=True, text=True)  # Capturar la salida
-            
-            if result.stderr:
-                st.error(f"Error de LibreOffice: {result.stderr}")
-                return [], []
-        
-        except subprocess.CalledProcessError as e:
-            st.error(f"Error al ejecutar LibreOffice: {e.stderr}")
-            return [], []
+            converter.convert(pptx_path, os.path.splitext(pptx_path)[0] + ".pdf")
+        finally:
+            converter.stop_server()
 
         # Definir la ruta del PDF generado
         pdf_path = os.path.splitext(pptx_path)[0] + ".pdf"
         if not os.path.exists(pdf_path):
-            st.error(f"No se encontró el PDF generado con LibreOffice en: {pdf_path}")
+            st.error(f"No se encontró el PDF generado con pptx2pdfwasm en: {pdf_path}")
             return [], []
 
         # Abrir el PDF y extraer cada página como imagen PNG
