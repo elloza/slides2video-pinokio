@@ -96,12 +96,15 @@ class XTTSv2(TTSEngine):
             # TODO: Implementar referencia de voz
             language = kwargs.get("reference_wav", None)
             language = kwargs.get("language", "es")
+            # Log
+            print(f"Sintetizando texto: '{text}' con voz: '{voice_id}' y lenguaje: '{language}'")
             result = self.model.tts(text=text, speaker=voice_id, language=language)
             audio = np.array(result)
             with io.BytesIO() as output:
                 sf.write(output, audio, 24000, format='WAV')
                 return output.getvalue()
         except Exception as e:
+            print(f"Error al sintetizar texto: {e}")
             return b""
 
 # Función fábrica para instanciar el proveedor deseado
