@@ -281,7 +281,7 @@ def step_configure_audio():
         st.write("### Configurar Audio")
         tts_provider_selected = st.selectbox(
             "Proveedor de TTS",
-            options=["elevenlabs", "xttsv2"],
+            options=["elevenlabs", "xttsv2", "chatterbox"],
             key='tts_provider'
         )
         if tts_provider_selected == 'elevenlabs':
@@ -311,7 +311,17 @@ def step_configure_audio():
             st.write("### Configuración de Idioma")
             languages = get_tts_provider(tts_provider_selected).get_available_languages()
             language = st.selectbox("Idioma", options=languages.keys(), format_func=lambda x: languages[x], key='language')
-    
+
+        elif tts_provider_selected == 'chatterbox':
+            st.write("### Configuración de Chatterbox TTS")
+            st.info("Modelo open source, solo en inglés y si tienes una tarjeta gráfica NVIDIA")
+            # Show a control for recording audio 
+            st.write("### Grabación de audio de referencia")
+            st.write("Puedes grabar un mensaje de voz para usarlo como referencia para la síntesis de voz.")
+            reference_audio = st.audio_input("Graba un mensaje de voz")
+            if reference_audio:
+                st.audio(reference_audio, format="audio/wav")
+            # Get the path to the audio file        
     with col_preview_audio:
         st.write("### Preview de Diapositivas con audio")
         num_slides = len(st.session_state.slides_images)
@@ -332,11 +342,12 @@ def step_configure_audio():
                         st.error("Por favor ingresa la Clave de API en la configuración.")
                         st.stop()
                     tts_client = get_tts_provider(provider, api_key)
-                    voice_id = st.session_state.get("selected_voice")
+                    voice_id = st.session_state.get("selected_voice", "default_voice")
                     language = st.session_state.get("language", "Spanish")
-                else:
-                    tts_client = get_tts_provider(provider)
-                    voice_id = st.session_state.get("selected_voice")
+                
+                elif provider == "chatterbox":
+                    tts_client = get_tts_provider(provider, reference_voice=reference_audio)
+                    voice_id = st.session_state.get("selected_voice", "default_voice")
                     language = st.session_state.get("language", "Spanish")
 
                 progress_bar = st.progress(0)
@@ -363,9 +374,14 @@ def step_configure_audio():
                     tts_client = get_tts_provider(provider, api_key)
                     voice_id = st.session_state.get("selected_voice")
                     language = st.session_state.get("language", "Spanish")
-                else:
+                elif provider == "xttsv2":
                     tts_client = get_tts_provider(provider)
                     voice_id = st.session_state.get("selected_voice")
+                    language = st.session_state.get("language", "Spanish")
+                else:
+                    tts_client = get_tts_provider(provider,reference_voice=reference_audio)
+                    voice_id = st.session_state.get("selected_voice", "default_voice")
+                    language = st.session_state.get("language", "Spanish")
                 
                 st.session_state.slides_notes_audios[slide_index] = tts_client.synthesize_text(voice_id, new_note, language=language)
                 st.success("Audio generado correctamente.")
