@@ -1,4 +1,7 @@
+gradio 
+devicetorch
 streamlit
+transformers
 PyPDF2
 python-pptx
 PyMuPDF
