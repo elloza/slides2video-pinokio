@@ -39,7 +39,11 @@ def get_file_stats(file_type, file):
                 "Tipo": "PowerPoint",
                 "Diapositivas": len(prs.slides),
                 "Con notas": slides_with_notes,
-                "Sin notas": len(prs.slides) - slides_with_notes
+                "Sin notas": len(prs.slides) - slides_with_notes,
+                "Total caracteres notas": sum(
+                    len(slide.notes_slide.notes_text_frame.text.strip())
+                    for slide in prs.slides if slide.notes_slide
+                )
             }
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")

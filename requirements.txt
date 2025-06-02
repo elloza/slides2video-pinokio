@@ -17,6 +17,7 @@ torchvision
 torchaudio
 playwright
 git+https://github.com/elloza/pptx2pdfwasm.git#egg=pptx2pdfwasm
+# Es necesario ejecutar playwright install despues de instalar playwright
 # chatterbox-tts
 # python -m pip install llama-cpp-python --prefer-binary --extra-index-url=https://jllllll.github.io/llama-cpp-python-cuBLAS-wheels/AVX2/cu117
 # outetts
