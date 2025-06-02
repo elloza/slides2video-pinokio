@@ -17,7 +17,7 @@ torchvision
 torchaudio
 playwright
 git+https://github.com/elloza/pptx2pdfwasm.git#egg=pptx2pdfwasm
-chatterbox-tts
+# chatterbox-tts
 # python -m pip install llama-cpp-python --prefer-binary --extra-index-url=https://jllllll.github.io/llama-cpp-python-cuBLAS-wheels/AVX2/cu117
 # outetts
 # Pytorch
