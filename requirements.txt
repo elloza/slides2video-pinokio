@@ -7,7 +7,7 @@ openai
 transformers
 sentencepiece
 elevenlabs
-moviepy
+moviepy==2.2.1
 proglog
 google-genai
 soundfile
