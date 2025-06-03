@@ -417,7 +417,7 @@ def step_generate_video():
         with col1:
             transition_silence = st.number_input("Tiempo de silencio en transiciones (segundos)", min_value=0.0, value=0.0, step=0.5, key="transition_silence")
         with col2:
-            fps = st.number_input("FPS (cuadros por segundo)", min_value=1, value=30, step=1, key="fps")
+            fps = st.number_input("FPS (cuadros por segundo)", min_value=1, value=15, step=1, key="fps")
         
         if st.button("🚀 Generar Video 🚀", use_container_width=True, type="primary"):
             
