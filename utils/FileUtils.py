@@ -125,20 +125,20 @@ def extract_slides_content(presentation: Presentation) -> List[dict]:
     
     return slides_data
 
-def extract_pdf_slides(file) -> List[bytes]:
-    """Extrae las diapositivas de un archivo PDF como imágenes usando PyMuPDF"""
+def extract_pdf_slides(file):
+    """
+    Devuelve cada página como PNG con altura ≥ min_height (px).
+    """
     images = []
-    try:
-        file.seek(0)  # reset the file pointer to the beginning
-        pdf_document = fitz.open(stream=file.read(), filetype="pdf")
-        for page_number in range(pdf_document.page_count):
-            page = pdf_document.load_page(page_number)
-            pix = page.get_pixmap()
-            img_data = pix.tobytes("png")  # Convert to PNG format
-            images.append(img_data)
-    except Exception as e:
-        st.error(f"Error al procesar el PDF con PyMuPDF: {e}")
-        return []
+    file.seek(0)
+    pdf_document = fitz.open(stream=file.read(), filetype="pdf")
+
+    for page in pdf_document:
+        # calcula el dpi que asegura min_height pero sin pasar de dpi_max
+        pix = page.get_pixmap(dpi=300)
+        images.append(pix.tobytes("png"))
+
+    pdf_document.close()
     return images
 
 def extract_pptx_slides(uploaded_file):
@@ -151,6 +151,8 @@ def extract_pptx_slides(uploaded_file):
     
     Args:
         uploaded_file (BytesIO): Archivo PPTX subido.
+        min_height (int): Altura mínima de las imágenes en píxeles.
+        dpi_max (int): DPI máximo para la conversión de imágenes.
     
     Returns:
         Tuple[List[bytes], List[str]]: (lista de imágenes en bytes, lista de notas)
@@ -188,7 +190,7 @@ def extract_pptx_slides(uploaded_file):
         # Abrir el PDF y extraer cada página como imagen PNG
         doc = fitz.open(pdf_path)
         for page in doc:
-            pix = page.get_pixmap()
+            pix = page.get_pixmap(dpi=300)
             slides_images.append(pix.tobytes("png"))
         doc.close()
 

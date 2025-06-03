@@ -102,7 +102,16 @@ def merge_slides_to_video(slide_images, slide_audios, default_duration, output_f
                     break
 
         threading.Thread(target=update_progress, daemon=True).start()
-        final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac", fps=fps, logger=logger)
+        final_clip.write_videofile(
+            output_file,
+            logger=logger,
+            codec="libx264",
+            audio_codec="aac",
+            fps=fps,
+            bitrate="8M",          # 8 megabits/s ≈ calidad buena para 1080p
+            preset="ultrafast",         # mejor compresión; “ultrafast” si sólo quieres velocidad
+            ffmpeg_params=["-pix_fmt", "yuv420p"]  # compatibilidad
+        )
 
         # Cuando termina, establecer el progreso en 100%
         if progress_queue:
