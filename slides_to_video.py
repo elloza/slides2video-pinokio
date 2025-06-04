@@ -415,11 +415,8 @@ def step_generate_video():
             key='transition'
         )
         default_duration = st.number_input("Duración (segundos) para diapositivas sin audio", min_value=1.0, value=3.0, step=0.5, key="default_duration")
-        col1,col2 = st.columns([1,1])
-        with col1:
-            transition_silence = st.number_input("Tiempo de silencio en transiciones (segundos)", min_value=0.0, value=0.0, step=0.5, key="transition_silence")
-        with col2:
-            fps = st.number_input("FPS (cuadros por segundo)", min_value=1, value=1, step=1, key="fps",help="Es posible dejarlo en 1 para presentaciones")
+        transition_silence = st.number_input("Tiempo de silencio en transiciones (segundos)", min_value=0.0, value=0.0, step=0.5, key="transition_silence")
+        fps = 1
         
         if st.button("🚀 Generar Video 🚀", use_container_width=True, type="primary"):
             
@@ -434,7 +431,7 @@ def step_generate_video():
             slides_images = st.session_state.slides_images
             slides_audios = st.session_state.slides_notes_audios
             default_duration = st.session_state.default_duration
-            fps = st.session_state.fps
+            fps = 1
             transition_silence = st.session_state.transition_silence
 
             # Variable compartida para almacenar el resultado
