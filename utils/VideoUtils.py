@@ -24,21 +24,23 @@ class StreamlitLogger(TqdmProgressBarLogger):
 
 
 def create_slide_clip(slide_image, audio_path, default_duration):
-    """
-    Crea un clip para una diapositiva.
-    slide_image: ruta, array o binario (imagen de la diapositiva)
-    audio_path: ruta o binario del archivo de audio; si es None se usará default_duration.
-    default_duration: duración en segundos en ausencia de audio.
-    """
-    # Procesar la imagen: si es binario, se convierte a array usando PIL
+    from PIL import ImageOps
+
     if isinstance(slide_image, bytes):
         image = Image.open(io.BytesIO(slide_image))
-        image_data = np.array(image)
     else:
-        image_data = slide_image
+        image = slide_image if isinstance(slide_image, Image.Image) else Image.fromarray(slide_image)
+
+    # Ajustar tamaño a múltiplo de 2
+    width, height = image.size
+    new_width = width - width % 2
+    new_height = height - height % 2
+    if (width != new_width) or (height != new_height):
+        image = image.resize((new_width, new_height), Image.LANCZOS)
+
+    image_data = np.array(image)
 
     if audio_path:
-        # Si el audio llega en binario, se escribe en un archivo temporal.
         if isinstance(audio_path, bytes):
             temp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
             temp_file.write(audio_path)
@@ -52,6 +54,7 @@ def create_slide_clip(slide_image, audio_path, default_duration):
         clip = ImageClip(image_data).with_duration(duration).with_audio(audio_clip)
     else:
         clip = ImageClip(image_data).with_duration(default_duration)
+
     return clip
 
 def merge_slides_to_video(slide_images, slide_audios, default_duration, output_file, fps=30, transition_silence=0.0, progress_queue=None):
