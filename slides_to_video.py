@@ -282,9 +282,23 @@ def step_configure_audio():
         tts_provider_selected = st.selectbox(
             "Proveedor de TTS",
             options=["xttsv2","elevenlabs"],
-            key='tts_provider'
+            key='tts_provider',
+            index=1
         )
-        if tts_provider_selected == 'elevenlabs':
+        
+        if tts_provider_selected == 'xttsv2':
+            st.write("### Configuración de XTTSv2")
+            st.info("Modelo open source, sin necesidad de API Key. Pero hay que indicar el idioma y al usar este modelo aceptas https://coqui.ai/cpml.txt")
+            # Spinner para cargar el modelo
+            with st.spinner("Cargando modelo...descargando todo lo necesario..."):
+                tts_client = get_tts_provider(tts_provider_selected)
+            map_all_voices = tts_client.get_available_voices()
+            voice_id = st.selectbox("Voz para la generación de audio", options=list(map_all_voices.keys()), format_func=lambda x: map_all_voices[x], key='selected_voice')
+            # Language (de los disponibles por el tts provider)
+            st.write("### Configuración de Idioma")
+            languages = get_tts_provider(tts_provider_selected).get_available_languages()
+            language = st.selectbox("Idioma", options=languages.keys(), format_func=lambda x: languages[x], key='language')
+        elif tts_provider_selected == 'elevenlabs':
             st.write("### Configuración de ElevenLabs")
             st.write("API para generar audio a partir de texto.")
             api_key = st.text_input("Clave de API", type="password", key='elevenlabs_api_key')
@@ -299,19 +313,7 @@ def step_configure_audio():
                     format_func=lambda x: map_all_voices[x]
                 )
                 st.session_state.selected_voice = selected_voice  # almacenar la voz seleccionada
-        elif tts_provider_selected == 'xttsv2':
-            st.write("### Configuración de XTTSv2")
-            st.info("Modelo open source, sin necesidad de API Key. Pero hay que indicar el idioma y al usar este modelo aceptas https://coqui.ai/cpml.txt")
-            # Spinner para cargar el modelo
-            with st.spinner("Cargando modelo...descargando todo lo necesario..."):
-                tts_client = get_tts_provider(tts_provider_selected)
-            map_all_voices = tts_client.get_available_voices()
-            voice_id = st.selectbox("Voz para la generación de audio", options=list(map_all_voices.keys()), format_func=lambda x: map_all_voices[x], key='selected_voice')
-            # Language (de los disponibles por el tts provider)
-            st.write("### Configuración de Idioma")
-            languages = get_tts_provider(tts_provider_selected).get_available_languages()
-            language = st.selectbox("Idioma", options=languages.keys(), format_func=lambda x: languages[x], key='language')
-
+                
         elif tts_provider_selected == 'chatterbox':
             st.write("### Configuración de Chatterbox TTS")
             st.info("Modelo open source, solo en inglés y si tienes una tarjeta gráfica NVIDIA")

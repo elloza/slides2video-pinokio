@@ -81,7 +81,7 @@ def init_session_state():
         'file_stats': None,
         'generated_notes': None,
         'target_language': 'es',
-        'tts_provider': 'elevenlabs',
+        'tts_provider': 'xttsv2',
         'generated_audio': None,
         'video_options': {'fps': 1, 'transition': 'fade'}
     }
