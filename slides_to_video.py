@@ -281,7 +281,7 @@ def step_configure_audio():
         st.write("### Configurar Audio")
         tts_provider_selected = st.selectbox(
             "Proveedor de TTS",
-            options=["elevenlabs", "xttsv2"],
+            options=["xttsv2","elevenlabs"],
             key='tts_provider'
         )
         if tts_provider_selected == 'elevenlabs':
